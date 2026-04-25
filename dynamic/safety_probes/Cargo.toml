@@ -1,0 +1,9 @@
+[package]
+name = "safety_probes"
+version = "0.1.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+hbb_common = { path = "../../../rustdesk-client/libs/hbb_common" }
+

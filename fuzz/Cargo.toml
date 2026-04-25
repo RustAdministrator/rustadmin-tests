@@ -1,0 +1,48 @@
+[package]
+name = "rustdesk_safety_fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+hbb_common = { path = "../../rustdesk-client/libs/hbb_common" }
+
+[[bin]]
+name = "bytes_codec_decode"
+path = "fuzz_targets/bytes_codec_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rendezvous_message_decode"
+path = "fuzz_targets/rendezvous_message_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "message_decode"
+path = "fuzz_targets/message_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "file_transfer_paths"
+path = "fuzz_targets/file_transfer_paths.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zstd_decompress"
+path = "fuzz_targets/zstd_decompress.rs"
+test = false
+doc = false
+bench = false
+
