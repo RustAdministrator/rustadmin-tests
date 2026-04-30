@@ -5,5 +5,4 @@ publish = false
 edition = "2021"
 
 [dependencies]
-hbb_common = { path = "../../../rustdesk-client/libs/hbb_common" }
-
+hbb_common = { path = "../../../hbb_common" }

@@ -10,7 +10,7 @@ The tests are split into:
 
 ## Existing Fuzzing Status
 
-No existing RustDesk `cargo-fuzz`, AFL, honggfuzz, or `fuzz_targets` suite was found in `rustdesk-client` or `rustdesk-server` during setup. There are normal Rust tests in `hbb_common`, including file-transfer path validation tests in `rustdesk-client/libs/hbb_common/src/fs.rs`.
+No existing RustDesk `cargo-fuzz`, AFL, honggfuzz, or `fuzz_targets` suite was found in `rustdesk-client`, `rustdesk-server`, or the top-level `hbb_common` repo during setup. There are normal Rust tests in `hbb_common`, including file-transfer path validation tests in `hbb_common/src/fs.rs`.
 
 ## Quick Start
 

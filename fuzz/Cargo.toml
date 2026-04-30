@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-hbb_common = { path = "../../rustdesk-client/libs/hbb_common" }
+hbb_common = { path = "../../hbb_common" }
 
 [[bin]]
 name = "bytes_codec_decode"
@@ -45,4 +45,3 @@ path = "fuzz_targets/zstd_decompress.rs"
 test = false
 doc = false
 bench = false
-
