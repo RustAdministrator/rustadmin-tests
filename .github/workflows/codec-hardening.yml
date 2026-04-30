@@ -1,0 +1,24 @@
+name: Codec Hardening
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  codec-hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tests
+        uses: actions/checkout@v4
+        with:
+          path: rustdesk-tests
+
+      - name: Checkout hbb_common
+        uses: actions/checkout@v4
+        with:
+          repository: RustAdministrator/hbb_common
+          token: ${{ secrets.RUSTADMIN_CI_TOKEN || github.token }}
+          path: hbb_common
+
+      - name: Run codec hardening gate
+        run: ./rustdesk-tests/scripts/run_codec_hardening_ci.sh

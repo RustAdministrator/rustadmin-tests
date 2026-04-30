@@ -20,6 +20,12 @@ Run local advisory/dependency checks that do not require missing tools:
 ./rustdesk-tests/scripts/run_advisories.sh
 ```
 
+Run the focused codec hardening gate for CI:
+
+```bash
+./rustdesk-tests/scripts/run_codec_hardening_ci.sh
+```
+
 Run dynamic localhost/resource probes:
 
 ```bash
