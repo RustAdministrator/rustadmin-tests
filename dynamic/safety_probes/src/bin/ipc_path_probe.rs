@@ -26,7 +26,7 @@ fn mode(_path: &std::path::Path) -> Option<u32> {
     None
 }
 
-fn normal_case() {
+fn normal_case() -> bool {
     let app_name = unique_name("RustDeskSafetyIpcNormal");
     set_app_name(&app_name);
     let ipc_path = Config::ipc_path("_probe");
@@ -37,16 +37,28 @@ fn normal_case() {
     println!("case=normal");
     println!("ipc_path={ipc_path}");
     println!("dir={}", dir.display());
-    println!("dir_mode={:?}", mode(&dir));
+    let dir_mode = mode(&dir);
+    let reproduced = dir_mode == Some(0o777);
+    println!("dir_mode={dir_mode:?}");
+    println!("finding_reproduced={reproduced}");
     let _ = std::fs::remove_dir_all(&dir);
+    reproduced
 }
 
 #[cfg(unix)]
 fn symlink_case() -> bool {
-    use std::os::unix::fs::{symlink, PermissionsExt};
+    use std::os::unix::fs::{symlink, MetadataExt, PermissionsExt};
 
     let app_name = unique_name("RustDeskSafetyIpcSymlink");
-    let link_path = PathBuf::from(format!("/tmp/{app_name}"));
+    let runtime_root = std::env::temp_dir().join(unique_name("rustdesk_ipc_runtime"));
+    let _ = std::fs::remove_dir_all(&runtime_root);
+    std::fs::create_dir_all(&runtime_root).expect("create runtime root");
+    std::env::set_var("XDG_RUNTIME_DIR", &runtime_root);
+
+    let uid = std::fs::metadata(&runtime_root)
+        .expect("runtime root metadata")
+        .uid();
+    let link_path = runtime_root.join(format!("{app_name}-{uid}"));
     let target_path = std::env::temp_dir().join(unique_name("rustdesk_ipc_symlink_target"));
     let _ = std::fs::remove_file(&link_path);
     let _ = std::fs::remove_dir_all(&target_path);
@@ -69,6 +81,7 @@ fn symlink_case() -> bool {
 
     let _ = std::fs::remove_file(&link_path);
     let _ = std::fs::remove_dir_all(&target_path);
+    let _ = std::fs::remove_dir_all(&runtime_root);
 
     reproduced
 }
@@ -80,8 +93,7 @@ fn symlink_case() -> bool {
 }
 
 fn main() -> ExitCode {
-    normal_case();
-    let reproduced = symlink_case();
+    let reproduced = normal_case() || symlink_case();
     if reproduced && std::env::var("EXPECT_HARDENED").ok().as_deref() == Some("1") {
         ExitCode::from(2)
     } else {
