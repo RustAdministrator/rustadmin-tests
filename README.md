@@ -8,6 +8,9 @@ The tests are split into:
 - localhost-only dynamic probes
 - resource checks for allocation and decompression behavior
 
+The upstream integration test plan for the May 2026 RustDesk sync review is in
+`upstream_integration_tests_20260510.md`.
+
 ## Existing Fuzzing Status
 
 No existing RustDesk `cargo-fuzz`, AFL, honggfuzz, or `fuzz_targets` suite was found in `rustdesk-client`, `rustdesk-server`, or the top-level `hbb_common` repo during setup. There are normal Rust tests in `hbb_common`, including file-transfer path validation tests in `hbb_common/src/fs.rs`.

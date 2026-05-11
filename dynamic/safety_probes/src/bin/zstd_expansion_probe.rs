@@ -1,4 +1,4 @@
-use hbb_common::compress::{compress, decompress};
+use hbb_common::compress::{compress, decompress, DEFAULT_DECOMPRESS_MAX_LEN};
 use std::{process::ExitCode, time::Instant};
 
 fn main() -> ExitCode {
@@ -24,6 +24,7 @@ fn main() -> ExitCode {
 
     println!("probe=zstd_expansion");
     println!("plain_len={plain_len}");
+    println!("default_decompress_max_len={DEFAULT_DECOMPRESS_MAX_LEN}");
     println!("compressed_len={}", compressed.len());
     println!("decompressed_len={}", output.len());
     println!("expansion_ratio={ratio:.2}");
