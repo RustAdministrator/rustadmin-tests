@@ -747,7 +747,7 @@ checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
 
 [[package]]
 name = "hbb_common"
-version = "2.0.1"
+version = "2.0.2"
 dependencies = [
  "anyhow",
  "async-recursion",
@@ -1745,6 +1745,10 @@ dependencies = [
  "untrusted",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "rustadmin-netprobe"
+version = "0.1.0"
 
 [[package]]
 name = "rustc-demangle"
