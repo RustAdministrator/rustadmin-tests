@@ -45,11 +45,30 @@ Window mode limits unacknowledged frame bytes:
 rustadmin-netprobe client --connect 192.168.10.5:23000 --mode window --window-bytes 262144 --pace-every 4 --pace-us 1000
 ```
 
+To reproduce a RustAdmin-style “video starts, then receiver stops draining for a
+while” failure, pause receiver reads after a few seconds:
+
+```bash
+rustadmin-netprobe server --bind 0.0.0.0:23000 --log receiver-pause.jsonl --pause-read-after-ms 5000 --pause-read-duration-ms 15000
+rustadmin-netprobe client --connect 192.168.10.5:23000 --duration-sec 40 --fps 30 --frame-size 150000 --chunk-size 1024 --mode burst --io-timeout-ms 15000 --log sender-burst.jsonl
+```
+
+The expected burst-mode failure is a `chunk_write_error` after the receiver
+pause fills the TCP send path. To validate a non-disconnecting video policy,
+switch the sender to window mode and skip video frames while the receiver has
+not ACKed enough bytes:
+
+```bash
+rustadmin-netprobe client --connect 192.168.10.5:23000 --duration-sec 40 --fps 30 --frame-size 150000 --chunk-size 1024 --mode window --window-bytes 300000 --window-wait-ms 0 --drop-when-window-full --log sender-window-drop.jsonl
+```
+
 Client socket reads and writes use a 15 second timeout by default. Override it
 with `--io-timeout-ms N`, or pass `0` to disable it.
 
 Useful fields:
 - `frame_send_start` / `frame_sent`: client-side frame emission timing.
+- `frame_skipped_window_full`: sender intentionally dropped a video frame rather
+  than pushing into a full TCP video window.
 - `frame_rx_start` / `frame_complete`: receiver-side reassembly timing.
 - `frame_ack`: client-side ACK timing and in-flight drain.
 - `summary`: sent and ACKed totals.

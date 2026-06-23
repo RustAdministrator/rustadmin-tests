@@ -87,6 +87,9 @@ struct ServerConfig {
     log_path: Option<String>,
     ack_every_chunks: u32,
     read_timeout_ms: u64,
+    pause_read_after_ms: u64,
+    pause_read_duration_ms: u64,
+    pause_read_repeat_ms: u64,
     verbose_chunks: bool,
     tcp_nodelay: bool,
 }
@@ -101,6 +104,8 @@ struct ClientConfig {
     chunk_size: u32,
     mode: SendMode,
     window_bytes: u64,
+    window_wait_ms: u64,
+    drop_when_window_full: bool,
     pace_every: u32,
     pace_us: u64,
     io_timeout_ms: u64,
@@ -307,9 +312,12 @@ fn run_server(config: ServerConfig) -> Result<(), String> {
         "server",
         "listen",
         format_args!(
-            ",\"bind\":\"{}\",\"ack_every_chunks\":{},\"tcp_nodelay\":{}",
+            ",\"bind\":\"{}\",\"ack_every_chunks\":{},\"pause_read_after_ms\":{},\"pause_read_duration_ms\":{},\"pause_read_repeat_ms\":{},\"tcp_nodelay\":{}",
             json_escape(&config.bind),
             config.ack_every_chunks,
+            config.pause_read_after_ms,
+            config.pause_read_duration_ms,
+            config.pause_read_repeat_ms,
             config.tcp_nodelay
         ),
     );
@@ -354,8 +362,22 @@ fn handle_server_connection(
     let mut frames: BTreeMap<u64, FrameRxState> = BTreeMap::new();
     let mut chunks_total = 0_u64;
     let mut bytes_total = 0_u64;
+    let started = Instant::now();
+    let mut next_pause_after_ms = if config.pause_read_duration_ms == 0 {
+        None
+    } else {
+        Some(config.pause_read_after_ms)
+    };
+    let mut pauses_taken = 0_u64;
 
     loop {
+        maybe_pause_server_read(
+            &logger,
+            config,
+            started,
+            &mut next_pause_after_ms,
+            &mut pauses_taken,
+        );
         let message = match read_wire_message(&mut stream, &mut scratch) {
             Ok(Some(message)) => message,
             Ok(None) => {
@@ -1315,7 +1337,7 @@ fn run_client(config: ClientConfig) -> Result<(), String> {
         "client",
         "connect",
         format_args!(
-            ",\"peer\":\"{}\",\"mode\":\"{}\",\"duration_sec\":{},\"fps\":{},\"frame_size\":{},\"chunk_size\":{},\"window_bytes\":{},\"pace_every\":{},\"pace_us\":{},\"io_timeout_ms\":{},\"tcp_nodelay\":{}",
+            ",\"peer\":\"{}\",\"mode\":\"{}\",\"duration_sec\":{},\"fps\":{},\"frame_size\":{},\"chunk_size\":{},\"window_bytes\":{},\"window_wait_ms\":{},\"drop_when_window_full\":{},\"pace_every\":{},\"pace_us\":{},\"io_timeout_ms\":{},\"tcp_nodelay\":{}",
             json_escape(&config.connect),
             config.mode.as_str(),
             config.duration_sec,
@@ -1323,6 +1345,8 @@ fn run_client(config: ClientConfig) -> Result<(), String> {
             config.frame_size,
             config.chunk_size,
             config.window_bytes,
+            config.window_wait_ms,
+            config.drop_when_window_full,
             config.pace_every,
             config.pace_us,
             config.io_timeout_ms,
@@ -1361,12 +1385,51 @@ fn run_client(config: ClientConfig) -> Result<(), String> {
     let started = Instant::now();
     let mut payload = vec![0_u8; config.chunk_size as usize];
     let mut frames_sent = 0_u64;
+    let mut frames_skipped = 0_u64;
     let mut chunks_sent = 0_u64;
     let mut bytes_sent = 0_u64;
 
     while frames_sent < frame_count_target {
         let frame_started = Instant::now();
         let chunk_count = div_ceil_u32(config.frame_size, config.chunk_size);
+        if config.drop_when_window_full
+            && !reserve_window_capacity(
+                &config,
+                &flow,
+                &logger,
+                frames_sent,
+                u64::from(config.frame_size),
+                true,
+            )?
+        {
+            frames_skipped = frames_skipped.saturating_add(1);
+            logger.event(
+                "client",
+                "frame_skipped_window_full",
+                format_args!(
+                    ",\"frame_id\":{},\"frame_size\":{},\"window_bytes\":{},\"window_wait_ms\":{}",
+                    frames_sent, config.frame_size, config.window_bytes, config.window_wait_ms
+                ),
+            );
+            frames_sent += 1;
+            next_frame += frame_period;
+            if let Some(sleep_for) = next_frame.checked_duration_since(Instant::now()) {
+                thread::sleep(sleep_for);
+            } else {
+                logger.event(
+                    "client",
+                    "schedule_late",
+                    format_args!(
+                        ",\"frame_id\":{},\"elapsed_ms\":{}",
+                        frames_sent,
+                        started.elapsed().as_millis()
+                    ),
+                );
+                next_frame = Instant::now();
+            }
+            continue;
+        }
+
         logger.event(
             "client",
             "frame_send_start",
@@ -1393,7 +1456,9 @@ fn run_client(config: ClientConfig) -> Result<(), String> {
                 sent_unix_us: unix_us(),
                 payload_len,
             };
-            reserve_window(&config, &flow, &logger, frames_sent, payload_len)?;
+            if !config.drop_when_window_full {
+                reserve_window(&config, &flow, &logger, frames_sent, payload_len)?;
+            }
             if let Err(err) = write_chunk(&mut stream, &chunk, &payload[..payload_len as usize]) {
                 logger.event(
                     "client",
@@ -1473,8 +1538,9 @@ fn run_client(config: ClientConfig) -> Result<(), String> {
         "client",
         "summary",
         format_args!(
-            ",\"frames_sent\":{},\"chunks_sent\":{},\"bytes_sent\":{},\"acked_frames\":{},\"acked_bytes\":{},\"inflight_bytes\":{}",
+            ",\"frames_sent\":{},\"frames_skipped\":{},\"chunks_sent\":{},\"bytes_sent\":{},\"acked_frames\":{},\"acked_bytes\":{},\"inflight_bytes\":{}",
             frames_sent,
+            frames_skipped,
             chunks_sent,
             bytes_sent,
             state.acked_frames,
@@ -1580,35 +1646,134 @@ fn reserve_window(
     frame_id: u64,
     payload_len: u32,
 ) -> Result<(), String> {
+    reserve_window_capacity(
+        config,
+        flow,
+        logger,
+        frame_id,
+        u64::from(payload_len),
+        false,
+    )
+    .map(|_| ())
+}
+
+fn reserve_window_capacity(
+    config: &ClientConfig,
+    flow: &Arc<(Mutex<FlowState>, Condvar)>,
+    logger: &Logger,
+    frame_id: u64,
+    bytes: u64,
+    allow_drop: bool,
+) -> Result<bool, String> {
     if config.mode != SendMode::Window {
-        return Ok(());
+        return Ok(true);
     }
     let (lock, cvar) = &**flow;
     let mut state = lock
         .lock()
         .map_err(|_| "flow state lock poisoned".to_string())?;
-    let payload_len = u64::from(payload_len);
-    let timeout = Duration::from_secs(10);
+    let timeout = Duration::from_millis(config.window_wait_ms);
     let wait_started = Instant::now();
-    while state.inflight_bytes.saturating_add(payload_len) > config.window_bytes {
+    while state.inflight_bytes.saturating_add(bytes) > config.window_bytes {
+        if allow_drop && config.window_wait_ms == 0 {
+            return Ok(false);
+        }
+        let wait_for = if config.window_wait_ms == 0 {
+            Duration::from_millis(200)
+        } else {
+            let remaining = timeout.saturating_sub(wait_started.elapsed());
+            if remaining.is_zero() {
+                if allow_drop {
+                    return Ok(false);
+                }
+                logger.event(
+                    "client",
+                    "window_timeout",
+                    format_args!(
+                        ",\"frame_id\":{},\"inflight_bytes\":{},\"window_bytes\":{},\"required_bytes\":{},\"window_wait_ms\":{}",
+                        frame_id, state.inflight_bytes, config.window_bytes, bytes, config.window_wait_ms
+                    ),
+                );
+                return Err("window mode timed out waiting for frame ACK".to_string());
+            }
+            remaining.min(Duration::from_millis(200))
+        };
         let (next_state, wait_result) = cvar
-            .wait_timeout(state, Duration::from_millis(200))
+            .wait_timeout(state, wait_for)
             .map_err(|_| "flow state lock poisoned".to_string())?;
         state = next_state;
-        if wait_result.timed_out() && wait_started.elapsed() > timeout {
+        if config.window_wait_ms != 0
+            && wait_result.timed_out()
+            && wait_started.elapsed() >= timeout
+        {
+            if allow_drop {
+                return Ok(false);
+            }
             logger.event(
                 "client",
                 "window_timeout",
                 format_args!(
-                    ",\"frame_id\":{},\"inflight_bytes\":{},\"window_bytes\":{}",
-                    frame_id, state.inflight_bytes, config.window_bytes
+                    ",\"frame_id\":{},\"inflight_bytes\":{},\"window_bytes\":{},\"required_bytes\":{},\"window_wait_ms\":{}",
+                    frame_id, state.inflight_bytes, config.window_bytes, bytes, config.window_wait_ms
                 ),
             );
             return Err("window mode timed out waiting for frame ACK".to_string());
         }
     }
-    state.inflight_bytes += payload_len;
-    Ok(())
+    state.inflight_bytes = state.inflight_bytes.saturating_add(bytes);
+    Ok(true)
+}
+
+fn maybe_pause_server_read(
+    logger: &Logger,
+    config: &ServerConfig,
+    started: Instant,
+    next_pause_after_ms: &mut Option<u64>,
+    pauses_taken: &mut u64,
+) {
+    let Some(pause_after_ms) = *next_pause_after_ms else {
+        return;
+    };
+    if started.elapsed() < Duration::from_millis(pause_after_ms) {
+        return;
+    }
+
+    logger.event(
+        "server",
+        "read_pause_start",
+        format_args!(
+            ",\"pause_index\":{},\"elapsed_ms\":{},\"duration_ms\":{}",
+            *pauses_taken,
+            started.elapsed().as_millis(),
+            config.pause_read_duration_ms
+        ),
+    );
+    thread::sleep(Duration::from_millis(config.pause_read_duration_ms));
+    *pauses_taken = (*pauses_taken).saturating_add(1);
+    logger.event(
+        "server",
+        "read_pause_end",
+        format_args!(
+            ",\"pause_index\":{},\"elapsed_ms\":{}",
+            (*pauses_taken).saturating_sub(1),
+            started.elapsed().as_millis()
+        ),
+    );
+
+    if config.pause_read_repeat_ms == 0 {
+        *next_pause_after_ms = None;
+        return;
+    }
+
+    let mut next = pause_after_ms.saturating_add(config.pause_read_repeat_ms);
+    let elapsed_ms = started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64;
+    while next <= elapsed_ms {
+        next = next.saturating_add(config.pause_read_repeat_ms);
+        if next == u64::MAX {
+            break;
+        }
+    }
+    *next_pause_after_ms = Some(next);
 }
 
 fn maybe_pace(config: &ClientConfig, chunks_sent_in_frame: u32, chunk_count: u32) {
@@ -1871,6 +2036,12 @@ fn validate_client_config(config: &ClientConfig) -> Result<(), String> {
     }
     if config.mode == SendMode::Window && config.window_bytes < u64::from(config.chunk_size) {
         return Err("--window-bytes must be at least --chunk-size in window mode".to_string());
+    }
+    if config.drop_when_window_full && config.mode != SendMode::Window {
+        return Err("--drop-when-window-full requires --mode window".to_string());
+    }
+    if config.drop_when_window_full && config.window_bytes < u64::from(config.frame_size) {
+        return Err("--window-bytes must be at least --frame-size when dropping full frames on a full window".to_string());
     }
     Ok(())
 }
@@ -2596,6 +2767,9 @@ fn parse_server(args: &[String]) -> Result<ServerConfig, String> {
         log_path: None,
         ack_every_chunks: 0,
         read_timeout_ms: 30_000,
+        pause_read_after_ms: 0,
+        pause_read_duration_ms: 0,
+        pause_read_repeat_ms: 0,
         verbose_chunks: false,
         tcp_nodelay: true,
     };
@@ -2610,6 +2784,18 @@ fn parse_server(args: &[String]) -> Result<ServerConfig, String> {
             }
             "--read-timeout-ms" => {
                 config.read_timeout_ms = parse_u64(&next_value(args, &mut i, "--read-timeout-ms")?)?
+            }
+            "--pause-read-after-ms" => {
+                config.pause_read_after_ms =
+                    parse_u64(&next_value(args, &mut i, "--pause-read-after-ms")?)?
+            }
+            "--pause-read-duration-ms" => {
+                config.pause_read_duration_ms =
+                    parse_u64(&next_value(args, &mut i, "--pause-read-duration-ms")?)?
+            }
+            "--pause-read-repeat-ms" => {
+                config.pause_read_repeat_ms =
+                    parse_u64(&next_value(args, &mut i, "--pause-read-repeat-ms")?)?
             }
             "--verbose-chunks" => config.verbose_chunks = true,
             "--tcp-nodelay" => {
@@ -2634,6 +2820,8 @@ fn parse_client(args: &[String]) -> Result<ClientConfig, String> {
         chunk_size: 1024,
         mode: SendMode::Burst,
         window_bytes: 256 * 1024,
+        window_wait_ms: 10_000,
+        drop_when_window_full: false,
         pace_every: 4,
         pace_us: 1000,
         io_timeout_ms: 15_000,
@@ -2659,6 +2847,10 @@ fn parse_client(args: &[String]) -> Result<ClientConfig, String> {
             "--window-bytes" => {
                 config.window_bytes = parse_u64(&next_value(args, &mut i, "--window-bytes")?)?
             }
+            "--window-wait-ms" => {
+                config.window_wait_ms = parse_u64(&next_value(args, &mut i, "--window-wait-ms")?)?
+            }
+            "--drop-when-window-full" => config.drop_when_window_full = true,
             "--pace-every" => {
                 config.pace_every = parse_u32(&next_value(args, &mut i, "--pace-every")?)?
             }
@@ -2839,8 +3031,8 @@ fn parse_bool(value: &str) -> Result<bool, String> {
 
 fn usage() -> String {
     "usage:
-  rustadmin-netprobe server [--bind 0.0.0.0:23000] [--log PATH] [--ack-every-chunks N] [--read-timeout-ms N] [--verbose-chunks] [--tcp-nodelay true|false]
-  rustadmin-netprobe client --connect HOST:23000 [--duration-sec N] [--fps N] [--frame-size BYTES] [--chunk-size BYTES] [--mode burst|paced|window] [--window-bytes BYTES] [--pace-every N] [--pace-us N] [--io-timeout-ms N] [--log PATH] [--verbose-chunks] [--tcp-nodelay true|false]
+  rustadmin-netprobe server [--bind 0.0.0.0:23000] [--log PATH] [--ack-every-chunks N] [--read-timeout-ms N] [--pause-read-after-ms N] [--pause-read-duration-ms N] [--pause-read-repeat-ms N] [--verbose-chunks] [--tcp-nodelay true|false]
+  rustadmin-netprobe client --connect HOST:23000 [--duration-sec N] [--fps N] [--frame-size BYTES] [--chunk-size BYTES] [--mode burst|paced|window] [--window-bytes BYTES] [--window-wait-ms N] [--drop-when-window-full] [--pace-every N] [--pace-us N] [--io-timeout-ms N] [--log PATH] [--verbose-chunks] [--tcp-nodelay true|false]
   rustadmin-netprobe udp-server [--bind 0.0.0.0:23000] [--log PATH] [--read-timeout-ms N] [--frame-timeout-ms N] [--drop-every N] [--drop-initial-frame-video-every N] [--nack-delay-ms N] [--nack-interval-ms N] [--nack-rounds N] [--nack-max-chunks N] [--nack-empty-frames] [--status-interval-ms N] [--quiet-frames] [--verbose-chunks]
   rustadmin-netprobe udp-client --connect HOST:23000 [--bind 0.0.0.0:0] [--duration-sec N] [--fps N] [--frame-size BYTES] [--payload-size BYTES] [--pace-every N] [--pace-us N] [--resend-cache-frames N] [--nack-linger-ms N] [--no-announce] [--log PATH] [--quiet-frames] [--verbose-chunks]
 "
@@ -2903,6 +3095,60 @@ mod tests {
         let mut scratch = Vec::new();
         let err = read_wire_message(&mut cursor, &mut scratch).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn parses_tcp_pause_options() {
+        let args = strings(&[
+            "--pause-read-after-ms",
+            "3000",
+            "--pause-read-duration-ms",
+            "12000",
+            "--pause-read-repeat-ms",
+            "60000",
+        ]);
+        let config = parse_server(&args).unwrap();
+        assert_eq!(config.pause_read_after_ms, 3000);
+        assert_eq!(config.pause_read_duration_ms, 12000);
+        assert_eq!(config.pause_read_repeat_ms, 60000);
+    }
+
+    #[test]
+    fn parses_tcp_window_drop_options() {
+        let args = strings(&[
+            "--connect",
+            "127.0.0.1:23000",
+            "--mode",
+            "window",
+            "--window-bytes",
+            "262144",
+            "--window-wait-ms",
+            "0",
+            "--drop-when-window-full",
+        ]);
+        let config = parse_client(&args).unwrap();
+        assert_eq!(config.mode, SendMode::Window);
+        assert_eq!(config.window_bytes, 262_144);
+        assert_eq!(config.window_wait_ms, 0);
+        assert!(config.drop_when_window_full);
+        validate_client_config(&config).unwrap();
+    }
+
+    #[test]
+    fn window_drop_requires_full_frame_capacity() {
+        let args = strings(&[
+            "--connect",
+            "127.0.0.1:23000",
+            "--mode",
+            "window",
+            "--frame-size",
+            "43090",
+            "--window-bytes",
+            "4096",
+            "--drop-when-window-full",
+        ]);
+        let config = parse_client(&args).unwrap();
+        assert!(validate_client_config(&config).is_err());
     }
 
     #[test]
@@ -3098,5 +3344,9 @@ mod tests {
         out.write_all(body)?;
         out.write_all(payload)?;
         Ok(())
+    }
+
+    fn strings(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| (*value).to_string()).collect()
     }
 }
