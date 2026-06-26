@@ -1,0 +1,27 @@
+[workspace]
+
+[package]
+name = "rustadmin-dxgi-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+winapi = { version = "0.3.9", features = [
+    "d3d11",
+    "d3dcommon",
+    "dxgi",
+    "dxgi1_2",
+    "dxgiformat",
+    "dxgitype",
+    "errhandlingapi",
+    "libloaderapi",
+    "minwindef",
+    "ntdef",
+    "unknwnbase",
+    "windef",
+    "winerror",
+    "wingdi",
+    "winuser",
+] }
+
