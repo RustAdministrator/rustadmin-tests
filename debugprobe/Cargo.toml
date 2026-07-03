@@ -1,0 +1,21 @@
+[workspace]
+
+[package]
+name = "rustadmin-debugprobe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+winapi = { version = "0.3.9", features = [
+    "dbghelp",
+    "errhandlingapi",
+    "fileapi",
+    "handleapi",
+    "minwindef",
+    "processthreadsapi",
+    "tlhelp32",
+    "winbase",
+    "winnt",
+    "winuser",
+] }
