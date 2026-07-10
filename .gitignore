@@ -6,3 +6,5 @@
 !/results/.gitkeep
 
 /debugprobe/target
+/av1_screen_bench/target/debug
+/target-scrap/debug
