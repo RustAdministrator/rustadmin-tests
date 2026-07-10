@@ -29,6 +29,16 @@ Run the focused codec hardening gate for CI:
 ./rustdesk-tests/scripts/run_codec_hardening_ci.sh
 ```
 
+Run the hardware-gated NVENC p5 encode/decode smoke tests on Windows:
+
+```powershell
+.\rustdesk-tests\scripts\run_nvenc_hq_smoke.ps1
+```
+
+The tests probe the installed NVIDIA encoders, encode deterministic NV12 frames
+with H264 and H265 NVENC p5, and software-decode the resulting packets. A codec
+without a confirmed NVENC implementation is reported as skipped.
+
 Run dynamic localhost/resource probes:
 
 ```bash
