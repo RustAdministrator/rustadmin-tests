@@ -10,10 +10,10 @@ if [[ -n "${codec_root}" ]]; then
 fi
 
 cargo test \
-  --manifest-path "${workspace_root}/rustdesk-client/libs/scrap/Cargo.toml" \
+  --manifest-path "${workspace_root}/rustadmin-client/libs/scrap/Cargo.toml" \
   --features hwcodec \
   --lib videotoolbox_high_quality_ \
-  --target-dir "${workspace_root}/rustdesk-tests/target-scrap-macos" \
+  --target-dir "${workspace_root}/rustadmin-tests/target-scrap-macos" \
   -- \
   --ignored \
   --nocapture \
