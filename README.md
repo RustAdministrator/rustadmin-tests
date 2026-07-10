@@ -39,6 +39,17 @@ The tests probe the installed NVIDIA encoders, encode deterministic NV12 frames
 with H264 and H265 NVENC p5, and software-decode the resulting packets. A codec
 without a confirmed NVENC implementation is reported as skipped.
 
+Run the dormant VideoToolbox HQ profile comparison on macOS:
+
+```bash
+./rustdesk-tests/scripts/run_videotoolbox_hq_smoke.sh /path/to/macos-codec-prefix
+```
+
+The test compares the existing real-time `prio_speed=1` profile against the
+candidate real-time `prio_speed=0` profile at the same bitrate. It checks
+first-frame output, complete software decode, encode throughput, output size,
+and decoded luma PSNR. RustAdmin does not advertise VideoToolbox HQ yet.
+
 Run dynamic localhost/resource probes:
 
 ```bash
