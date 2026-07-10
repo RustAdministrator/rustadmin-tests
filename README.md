@@ -45,6 +45,9 @@ Run the dormant VideoToolbox HQ profile comparison on macOS:
 ./rustdesk-tests/scripts/run_videotoolbox_hq_smoke.sh /path/to/macos-codec-prefix
 ```
 
+Repositories named `rustadmin-client`/`rustadmin-tests` are detected as well,
+and the script works when launched explicitly through either `zsh` or `bash`.
+
 The test compares the existing real-time `prio_speed=1` profile against the
 candidate real-time `prio_speed=0` profile at the same bitrate. It checks
 first-frame output, complete software decode, encode throughput, output size,
