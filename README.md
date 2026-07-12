@@ -1,6 +1,6 @@
 # RustDesk Safety Tests
 
-This directory contains defensive safety tests for this RustDesk fork. It is intentionally outside `rustdesk-client` and `rustadmin-server` so the original source trees are not changed.
+This directory contains defensive safety tests for this RustDesk fork. It is intentionally outside `rustadmin` and `rustadmin-server` so the original source trees are not changed.
 
 The tests are split into:
 - advisory and dependency checks
@@ -13,7 +13,7 @@ The upstream integration test plan for the May 2026 RustDesk sync review is in
 
 ## Existing Fuzzing Status
 
-No existing RustDesk `cargo-fuzz`, AFL, honggfuzz, or `fuzz_targets` suite was found in `rustdesk-client`, `rustadmin-server`, or the top-level `hbb_common` repo during setup. There are normal Rust tests in `hbb_common`, including file-transfer path validation tests in `hbb_common/src/fs.rs`.
+No existing RustDesk `cargo-fuzz`, AFL, honggfuzz, or `fuzz_targets` suite was found in `rustadmin`, `rustadmin-server`, or the top-level `hbb_common` repo during setup. There are normal Rust tests in `hbb_common`, including file-transfer path validation tests in `hbb_common/src/fs.rs`.
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ Run the dormant VideoToolbox HQ profile comparison on macOS:
 ./rustadmin-tests/scripts/run_videotoolbox_hq_smoke.sh /path/to/macos-codec-prefix
 ```
 
-Client repositories named `rustdesk-client`, `rustadmin`, or `rustadmin-client`
+Client repositories named `rustadmin`, `rustadmin-client`, or `rustdesk-client`
 are detected, and the script works when launched explicitly through either
 `zsh` or `bash`.
 

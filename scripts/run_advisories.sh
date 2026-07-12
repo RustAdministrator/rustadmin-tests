@@ -46,7 +46,7 @@ note() {
     echo "## Advisory Checks"
 } >"$SUMMARY"
 
-for repo in hbb_common rustdesk-client rustadmin-server; do
+for repo in hbb_common rustadmin rustadmin-server; do
     if [ -d "$ROOT/$repo" ]; then
         run_capture "${repo}_cargo_tree_d" cargo tree --manifest-path "$ROOT/$repo/Cargo.toml" --locked -d
         run_capture "${repo}_cargo_metadata_locked" cargo metadata --manifest-path "$ROOT/$repo/Cargo.toml" --format-version=1 --locked
@@ -69,7 +69,7 @@ done
 
 if [ "${RUN_ONLINE:-0}" = "1" ]; then
     if command -v osv-scanner >/dev/null 2>&1; then
-        run_capture "osv_scanner" osv-scanner --lockfile "$ROOT/hbb_common/Cargo.lock" --lockfile "$ROOT/rustdesk-client/Cargo.lock" --lockfile "$ROOT/rustadmin-server/Cargo.lock"
+        run_capture "osv_scanner" osv-scanner --lockfile "$ROOT/hbb_common/Cargo.lock" --lockfile "$ROOT/rustadmin/Cargo.lock" --lockfile "$ROOT/rustadmin-server/Cargo.lock"
     else
         note "osv-scanner missing; see https://google.github.io/osv-scanner/"
         echo "- osv_scanner: skipped, osv-scanner missing" >>"$SUMMARY"
@@ -84,8 +84,8 @@ if [ "${RUN_ONLINE:-0}" = "1" ]; then
         fi
     fi
 
-    if command -v flutter >/dev/null 2>&1 && [ -d "$ROOT/rustdesk-client/flutter" ]; then
-        run_capture_in_dir "client_flutter_pub_outdated" "$ROOT/rustdesk-client/flutter" flutter pub outdated
+    if command -v flutter >/dev/null 2>&1 && [ -d "$ROOT/rustadmin/flutter" ]; then
+        run_capture_in_dir "client_flutter_pub_outdated" "$ROOT/rustadmin/flutter" flutter pub outdated
     fi
 else
     echo "- online checks: skipped; set RUN_ONLINE=1 to enable npm/flutter/OSV network checks" >>"$SUMMARY"

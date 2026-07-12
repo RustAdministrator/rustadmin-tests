@@ -7,7 +7,7 @@ workspace_root="$(cd "${tests_root}/.." && pwd)"
 codec_root="${1:-${RUSTDESK_MACOS_CODEC_ROOT:-}}"
 
 client_root=""
-for candidate in rustdesk-client rustadmin rustadmin-client; do
+for candidate in rustadmin rustadmin-client rustdesk-client; do
   if [ -f "${workspace_root}/${candidate}/libs/scrap/Cargo.toml" ]; then
     client_root="${workspace_root}/${candidate}"
     break
@@ -15,7 +15,7 @@ for candidate in rustdesk-client rustadmin rustadmin-client; do
 done
 
 if [ -z "${client_root}" ]; then
-  echo "error: could not find rustdesk-client, rustadmin, or rustadmin-client under ${workspace_root}" >&2
+  echo "error: could not find rustadmin, rustadmin-client, or rustdesk-client under ${workspace_root}" >&2
   exit 1
 fi
 

@@ -7,7 +7,7 @@ $ErrorActionPreference = "Stop"
 
 $WorkspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $TestsRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$ScrapManifest = Join-Path $WorkspaceRoot "rustdesk-client\libs\scrap\Cargo.toml"
+$ScrapManifest = Join-Path $WorkspaceRoot "rustadmin\libs\scrap\Cargo.toml"
 if ([string]::IsNullOrWhiteSpace($TargetDir)) {
     $TargetDir = Join-Path $TestsRoot "target-scrap"
 }
