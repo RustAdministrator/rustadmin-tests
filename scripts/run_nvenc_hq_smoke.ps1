@@ -1,12 +1,16 @@
 param(
     [string]$CodecRoot = "F:\DVS",
-    [string]$TargetDir = "F:\GH\rustdesk\rustdesk-tests\target-scrap"
+    [string]$TargetDir = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $WorkspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$TestsRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $ScrapManifest = Join-Path $WorkspaceRoot "rustdesk-client\libs\scrap\Cargo.toml"
+if ([string]::IsNullOrWhiteSpace($TargetDir)) {
+    $TargetDir = Join-Path $TestsRoot "target-scrap"
+}
 
 $env:RUSTDESK_WINDOWS_CODEC_ROOT = $CodecRoot
 $env:CMAKE_PREFIX_PATH = $CodecRoot

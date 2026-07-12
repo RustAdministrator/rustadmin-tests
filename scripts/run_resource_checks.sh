@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TESTS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$TESTS_ROOT/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$ROOT/rustdesk-tests/results/$STAMP/resource"
-SUMMARY="$ROOT/rustdesk-tests/results/$STAMP/summary.md"
-MANIFEST="$ROOT/rustdesk-tests/dynamic/safety_probes/Cargo.toml"
+OUT="$TESTS_ROOT/results/$STAMP/resource"
+SUMMARY="$TESTS_ROOT/results/$STAMP/summary.md"
+MANIFEST="$TESTS_ROOT/dynamic/safety_probes/Cargo.toml"
 mkdir -p "$OUT"
 
 {
@@ -26,7 +27,7 @@ run_resource() {
     local name="$1"
     shift
     local log="$OUT/${name}.log"
-    /usr/bin/time -v "$ROOT/rustdesk-tests/target/debug/$name" "$@" >"$log" 2>&1
+    /usr/bin/time -v "$TESTS_ROOT/target/debug/$name" "$@" >"$log" 2>&1
     local status=$?
     echo "- $name: exit $status, log $(realpath --relative-to="$ROOT" "$log")" >>"$SUMMARY"
 }

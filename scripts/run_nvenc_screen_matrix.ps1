@@ -1,6 +1,6 @@
 param(
-    [string]$Corpus = "F:\GH\rustdesk\rustdesk-tests\results\process-lasso\process-lasso-display2-90f.rasc",
-    [string]$OutputDir = "F:\GH\rustdesk\rustdesk-tests\results\process-lasso\nvenc-tuning-matrix",
+    [string]$Corpus = "",
+    [string]$OutputDir = "",
     [string]$CodecRoot = "F:\DVS",
     [int]$Width = 2560,
     [int]$Height = 1440,
@@ -12,6 +12,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $TestsRoot = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($Corpus)) {
+    $Corpus = Join-Path $TestsRoot "results\process-lasso\process-lasso-display2-90f.rasc"
+}
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = Join-Path $TestsRoot "results\process-lasso\nvenc-tuning-matrix"
+}
 $Probe = Join-Path $TestsRoot "target\release\rustadmin-av1-screen-bench.exe"
 $FFmpeg = Join-Path $CodecRoot "bin\ffmpeg.exe"
 $FFprobe = Join-Path $CodecRoot "bin\ffprobe.exe"

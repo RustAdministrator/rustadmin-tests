@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TESTS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$TESTS_ROOT/.." && pwd)"
 SECONDS_PER_TARGET="${1:-60}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$ROOT/rustdesk-tests/results/$STAMP/fuzz"
-SUMMARY="$ROOT/rustdesk-tests/results/$STAMP/summary.md"
-FUZZ_DIR="$ROOT/rustdesk-tests"
+OUT="$TESTS_ROOT/results/$STAMP/fuzz"
+SUMMARY="$TESTS_ROOT/results/$STAMP/summary.md"
+FUZZ_DIR="$TESTS_ROOT"
 mkdir -p "$OUT"
 
 {

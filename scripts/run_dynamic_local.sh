@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TESTS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$TESTS_ROOT/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$ROOT/rustdesk-tests/results/$STAMP/dynamic"
-SUMMARY="$ROOT/rustdesk-tests/results/$STAMP/summary.md"
-MANIFEST="$ROOT/rustdesk-tests/dynamic/safety_probes/Cargo.toml"
+OUT="$TESTS_ROOT/results/$STAMP/dynamic"
+SUMMARY="$TESTS_ROOT/results/$STAMP/summary.md"
+MANIFEST="$TESTS_ROOT/dynamic/safety_probes/Cargo.toml"
 mkdir -p "$OUT"
 
 {
@@ -37,4 +38,3 @@ else
 fi
 
 echo "Results: $OUT"
-

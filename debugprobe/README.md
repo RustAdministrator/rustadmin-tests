@@ -6,7 +6,7 @@ we do not want to rebuild the full application.
 Build from the repo root on Windows:
 
 ```powershell
-cargo build --manifest-path .\rustdesk-tests\debugprobe\Cargo.toml --release
+cargo build --manifest-path .\rustadmin-tests\debugprobe\Cargo.toml --release
 ```
 
 Run on the affected Windows machine:

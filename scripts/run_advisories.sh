@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+TESTS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$TESTS_ROOT/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-OUT="$ROOT/rustdesk-tests/results/$STAMP/advisories"
-SUMMARY="$ROOT/rustdesk-tests/results/$STAMP/summary.md"
+OUT="$TESTS_ROOT/results/$STAMP/advisories"
+SUMMARY="$TESTS_ROOT/results/$STAMP/summary.md"
 mkdir -p "$OUT"
 
 run_capture() {
@@ -45,7 +46,7 @@ note() {
     echo "## Advisory Checks"
 } >"$SUMMARY"
 
-for repo in hbb_common rustdesk-client rustdesk-server; do
+for repo in hbb_common rustdesk-client rustadmin-server; do
     if [ -d "$ROOT/$repo" ]; then
         run_capture "${repo}_cargo_tree_d" cargo tree --manifest-path "$ROOT/$repo/Cargo.toml" --locked -d
         run_capture "${repo}_cargo_metadata_locked" cargo metadata --manifest-path "$ROOT/$repo/Cargo.toml" --format-version=1 --locked
@@ -68,15 +69,15 @@ done
 
 if [ "${RUN_ONLINE:-0}" = "1" ]; then
     if command -v osv-scanner >/dev/null 2>&1; then
-        run_capture "osv_scanner" osv-scanner --lockfile "$ROOT/hbb_common/Cargo.lock" --lockfile "$ROOT/rustdesk-client/Cargo.lock" --lockfile "$ROOT/rustdesk-server/Cargo.lock"
+        run_capture "osv_scanner" osv-scanner --lockfile "$ROOT/hbb_common/Cargo.lock" --lockfile "$ROOT/rustdesk-client/Cargo.lock" --lockfile "$ROOT/rustadmin-server/Cargo.lock"
     else
         note "osv-scanner missing; see https://google.github.io/osv-scanner/"
         echo "- osv_scanner: skipped, osv-scanner missing" >>"$SUMMARY"
     fi
 
-    if command -v npm >/dev/null 2>&1 && [ -d "$ROOT/rustdesk-server/ui/html" ]; then
-        if [ -f "$ROOT/rustdesk-server/ui/html/package-lock.json" ] || [ -f "$ROOT/rustdesk-server/ui/html/npm-shrinkwrap.json" ]; then
-            run_capture "server_ui_npm_audit" npm --prefix "$ROOT/rustdesk-server/ui/html" audit --json
+    if command -v npm >/dev/null 2>&1 && [ -d "$ROOT/rustadmin-server/ui/html" ]; then
+        if [ -f "$ROOT/rustadmin-server/ui/html/package-lock.json" ] || [ -f "$ROOT/rustadmin-server/ui/html/npm-shrinkwrap.json" ]; then
+            run_capture "server_ui_npm_audit" npm --prefix "$ROOT/rustadmin-server/ui/html" audit --json
         else
             note "server UI npm audit skipped; package-lock.json/npm-shrinkwrap.json is missing"
             echo "- server_ui_npm_audit: skipped, no npm lockfile" >>"$SUMMARY"
